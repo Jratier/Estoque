@@ -267,16 +267,30 @@
             URL.revokeObjectURL(url); // Libera a URL criada
         }
 
-        function pesquisarMaterial() {
-            let input = document.getElementById('searchInput').value.toLowerCase();
-            let material = materiais[indexAtual];
+   function pesquisarMaterial() {
+    let input = document.getElementById('searchInput').value.toLowerCase();
 
-            if (material.codigo.toLowerCase().includes(input)) {
-                mostrarMaterial(indexAtual);
-            } else {
-                alert("Material não encontrado.");
-            }
+    if (input.length === 0) {
+        // Se a caixa de texto estiver vazia, não faz nada
+        return;
+    }
+
+    let encontrado = false; // Flag para verificar se o material foi encontrado
+
+    materiais.forEach((material, index) => {
+        if (material.codigo.toLowerCase().includes(input)) {
+            indexAtual = index; // Atualiza o índice atual para o encontrado
+            mostrarMaterial(indexAtual); // Mostra o material encontrado
+            encontrado = true; // Marca que encontramos um material
         }
+    });
+
+    if (!encontrado) {
+        alert("Material não encontrado."); // Alerta se nenhum material for encontrado
+    }
+}
+
+
     </script>
 </body>
 </html>
