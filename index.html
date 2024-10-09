@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contagem de Estoque</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+            background-color: #f0f4f8; /* Fundo claro */
+            color: #333;
+        }
+        h1 {
+            color: #4A90E2; /* Azul suave */
+            margin-bottom: 20px;
+        }
+        .button {
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #4A90E2; /* Azul suave */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .button:hover {
+            background-color: #357ABD; /* Azul escuro */
+            transform: translateY(-1px);
+        }
+        #linhaMaterial {
+            padding: 20px;
+            margin-top: 20px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+            text-align: left;
+            max-width: 500px;
+            width: 100%; /* Ajusta para a tela */
+        }
+        #novaQuantidadeBox {
+            display: none; /* Oculta a caixa de correção inicialmente */
+            margin-top: 20px;
+        }
+        #novaQuantidadeBox input {
+            padding: 8px;
+            width: 50%;
+            font-size: 16px;
+            margin-right: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        #errorsTable {
+            display: none; /* Oculta a tabela de erros inicialmente */
+            margin-top: 20px;
+        }
+        #errorsTable table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        #errorsTable th, #errorsTable td {
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            text-align: center;
+        }
+        #errorsTable th {
+            background-color: #f8f9fa;
+            color: #495057;
+        }
+        /* Responsividade */
+        @media (max-width: 600px) {
+            #linhaMaterial, #errorsTable table {
+                width: 100%;
+            }
+            #novaQuantidadeBox input {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Contagem de Estoque</h1>
+
+    <!-- Botão para importar o arquivo -->
+    <input type="file" id="fileInput" accept=".csv" class="button">
+    <button id="btnLoad" class="button">Carregar Arquivo</button>
+
+    <div id="materialInfo" style="display: none;">
+        <h3>Informações do Material</h3>
+        <div id="linhaMaterial">
+            <p><strong>Código:</strong> <span id="codigoMaterial"></span></p>
+            <p><strong>Descrição:</strong> <span id="descricaoMaterial"></span></p>
+            <p><strong>Quantidade:</strong> <span id="quantidadeMaterial"></span></p>
+            <p><strong>Unidade de Medida:</strong> <span id="unidadeMedida"></span></p>
+        </div>
+
+        <button class="button" onclick="mostrarCaixaQuantidade()">Material Errado</button>
+        <button class="button" onclick="proximoMaterial()">Próximo</button>
+        <button class="button" onclick="mostrarErros()">Ver Lista de Erros</button>
+
+        <!-- Caixa de texto para corrigir a quantidade -->
+        <div id="novaQuantidadeBox">
+            <p>Insira a quantidade correta:</p>
+            <input type="number" id="novaQuantidadeInput" min="0" placeholder="Quantidade correta">
+            <button class="button" onclick="corrigirQuantidade()">Confirmar Correção</button>
+        </div>
+    </div>
+
+    <!-- Caixa de pesquisa para buscar materiais -->
+    <div id="searchBox" style="display: none;">
+        <input type="text" id="searchInput" oninput="pesquisarMaterial()" placeholder="Pesquisar material pelo código..." class="button" style="width: 50%; padding: 10px;">
+    </div>
+
+    <!-- Tabela de erros -->
+    <div id="errorsTable">
+        <h3>Materiais com Erros</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Descrição</th>
+                    <th>Quantidade Corrigida</th>
+                    <th>Unidade de Medida</th>
+                </tr>
+            </thead>
+            <tbody id="errorsBody"></tbody>
+        </table>
+        <!-- Botão Voltar -->
+        <button class="button" onclick="voltarParaContagem()">Voltar para Contagem</button>
+        <!-- Botão para Gerar Relatório -->
+        <button class="button" onclick="gerarRelatorio()">Gerar Relatório</button>
+    </div>
+
+    <script>
+        let materiais = [];
+        let indexAtual = 0;
+        let errors = [];
+
+        document.getElementById('btnLoad').addEventListener('click', function() {
+            let fileInput = document.getElementById('fileInput');
+            let file = fileInput.files[0];
+
+            if (file) {
+                let reader = new FileReader();
+                reader.onload = function(e) {
+                    let contents = e.target.result;
+                    processarCSV(contents);
+                    mostrarMaterial(indexAtual);
+                    document.getElementById('fileInput').style.display = 'none'; // Ocultar botão de upload após carregar
+                    document.getElementById('btnLoad').style.display = 'none';
+                    document.getElementById('searchBox').style.display = 'block'; // Mostrar caixa de pesquisa
+                    document.getElementById('materialInfo').style.display = 'block'; // Mostrar informações do material
+                };
+                reader.readAsText(file);
+            } else {
+                alert("Por favor, selecione um arquivo.");
+            }
+        });
+
+        function processarCSV(texto) {
+            let linhas = texto.split('\n');
+            for (let i = 1; i < linhas.length; i++) {
+                let colunas = linhas[i].split(';');
+                if (colunas.length >= 4) {
+                    materiais.push({
+                        codigo: colunas[0].trim(),
+                        descricao: colunas[1].trim(),
+                        quantidade: colunas[2].trim(),
+                        unidade: colunas[3].trim()
+                    });
+                }
+            }
+        }
+
+        function mostrarMaterial(index) {
+            if (index >= 0 && index < materiais.length) {
+                let material = materiais[index];
+                document.getElementById('codigoMaterial').innerText = material.codigo;
+                document.getElementById('descricaoMaterial').innerText = material.descricao;
+                document.getElementById('quantidadeMaterial').innerText = material.quantidade;
+                document.getElementById('unidadeMedida').innerText = material.unidade;
+                document.getElementById('novaQuantidadeBox').style.display = 'none'; // Esconde a caixa de correção
+            } else {
+                alert("Você terminou de contar todos os materiais.");
+                document.getElementById('materialInfo').style.display = 'none';
+                if (errors.length > 0) {
+                    mostrarErros();
+                }
+            }
+        }
+
+        function mostrarCaixaQuantidade() {
+            document.getElementById('novaQuantidadeBox').style.display = 'block';  // Mostra a caixa de correção
+        }
+
+        function corrigirQuantidade() {
+            let novaQuantidade = document.getElementById("novaQuantidadeInput").value;
+
+            if (novaQuantidade !== "") {
+                let codigo = document.getElementById("codigoMaterial").innerText;
+                let descricao = document.getElementById("descricaoMaterial").innerText;
+                let unidade = document.getElementById("unidadeMedida").innerText;
+
+                errors.push({
+                    codigo: codigo,
+                    descricao: descricao,
+                    novaQuantidade: novaQuantidade,
+                    unidade: unidade
+                });
+
+                alert("Material adicionado aos erros com a quantidade corrigida.");
+                document.getElementById("novaQuantidadeInput").value = ""; // Limpa o campo após a correção
+                proximoMaterial(); // Avança para o próximo material
+            } else {
+                alert("Por favor, insira uma quantidade válida.");
+            }
+        }
+
+        function proximoMaterial() {
+            indexAtual++;
+            mostrarMaterial(indexAtual);
+        }
+
+        function mostrarErros() {
+            document.getElementById('materialInfo').style.display = 'none'; // Esconde a seção de contagem
+            document.getElementById('errorsTable').style.display = 'block'; // Mostra a tabela de erros
+            let errorsBody = document.getElementById('errorsBody');
+            errorsBody.innerHTML = ""; // Limpa a tabela antes de preencher
+
+            errors.forEach(error => {
+                let row = `<tr>
+                    <td>${error.codigo}</td>
+                    <td>${error.descricao}</td>
+                    <td>${error.novaQuantidade}</td>
+                    <td>${error.unidade}</td>
+                </tr>`;
+                errorsBody.innerHTML += row;
+            });
+        }
+
+        function voltarParaContagem() {
+            document.getElementById('errorsTable').style.display = 'none'; // Esconde a tabela de erros
+            document.getElementById('materialInfo').style.display = 'block'; // Mostra a seção de contagem
+            indexAtual = 0; // Reinicia o índice
+            mostrarMaterial(indexAtual); // Mostra o primeiro material
+        }
+
+        function gerarRelatorio() {
+            let relatorio = "Código;Descrição;Quantidade Corrigida;Unidade\n";
+            errors.forEach(error => {
+                relatorio += `${error.codigo};${error.descricao};${error.novaQuantidade};${error.unidade}\n`;
+            });
+            let blob = new Blob([relatorio], { type: 'text/csv' });
+            let url = URL.createObjectURL(blob);
+            let a = document.createElement('a');
+            a.href = url;
+            a.download = 'relatorio_erros.csv';
+            a.click();
+            URL.revokeObjectURL(url); // Libera a URL criada
+        }
+
+        function pesquisarMaterial() {
+            let input = document.getElementById('searchInput').value.toLowerCase();
+            let material = materiais[indexAtual];
+
+            if (material.codigo.toLowerCase().includes(input)) {
+                mostrarMaterial(indexAtual);
+            } else {
+                alert("Material não encontrado.");
+            }
+        }
+    </script>
+</body>
+</html>
